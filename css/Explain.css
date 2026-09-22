@@ -1,0 +1,179 @@
+/*
+ * Selectors are scoped to the bar because DebugBar resets everything inside it with
+ * `div.phpdebugbar *`, which outranks a bare class.
+ */
+
+/*
+ * The messages and SQL widgets both pin their filter toolbar with `position: fixed; bottom: 0`, and
+ * the bar's body sits on the viewport bottom, so the toolbar covers the last rows of the panel. Put
+ * it back in the flow, where it takes its own space and covers nothing. It scrolls away with the
+ * rest of the panel header, which is the point: no layer of the panel is ever hidden.
+ *
+ * Specificity has to beat `div.phpdebugbar-widgets-sqlqueries div.phpdebugbar-widgets-toolbar`.
+ * Display is left alone because the SQL widget shows the toolbar with jQuery, which writes an
+ * inline display of its own.
+ */
+div.phpdebugbar div.phpdebugbar-panel div.phpdebugbar-widgets-toolbar {
+    position: static;
+    /* Content-box is on for everything in the bar, so a width of 100% plus padding would overflow. */
+    width: auto;
+    padding: 3px 6px;
+    /* The filter links are floated, and this contains them so the row keeps its height. */
+    overflow: hidden;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+}
+
+/*
+ * The select list as a grid rather than a column of entries. `auto-fill` fits as many tracks as
+ * the panel is wide enough to hold, and every track is `1fr`, so they are all the same width and
+ * the entries line up down the panel. Nothing has to measure the longest name to get that.
+ *
+ * Grid, not `columns`: multi-column fills top to bottom, so the list would read down each column
+ * instead of across, and the order of a select list is worth keeping.
+ */
+.phpdebugbar .ft-columns {
+    display: grid;
+    /*
+     * The track width is the longest entry in this statement, set as a custom property when the
+     * row is rendered. The fallback only matters if that never ran.
+     */
+    grid-template-columns: repeat(auto-fill, minmax(var(--ft-column-width, 30ch), 1fr));
+    column-gap: 16px;
+}
+
+.phpdebugbar .ft-column {
+    /* Never wraps: the track is sized to take the longest entry on one line. */
+    white-space: pre;
+}
+
+/* Long expressions take the full width, so one of them cannot stretch a whole row of names. */
+.phpdebugbar .ft-column-wide {
+    grid-column: 1 / -1;
+    /* These are the entries too long for a track, and they have a row of their own to wrap in. */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.phpdebugbar li.ft-graphql-statement {
+    box-shadow: inset 3px 0 0 #e535ab;
+}
+
+.phpdebugbar .ft-graphql-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: #e535ab;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    line-height: 14px;
+    text-transform: uppercase;
+}
+
+/*
+ * Floated rather than placed absolutely, so it can never land on top of the statement or on the
+ * row's own duration, memory and source: a float takes its own space and the rest reflows around
+ * it.
+ */
+.phpdebugbar .ft-explain-button {
+    float: right;
+    margin: 0 0 2px 8px;
+    padding: 1px 6px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    background: #fff;
+    font-size: 10px;
+    line-height: 14px;
+    cursor: pointer;
+}
+
+.phpdebugbar .ft-explain-button:hover {
+    background: #eee;
+}
+
+.phpdebugbar .ft-explain-panel {
+    margin: 6px 0 2px;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid #ddd;
+    cursor: default;
+    /* The row's duration, memory and source spans are right floated, and overflow below makes
+       this a new formatting context, which would otherwise shrink into the gap they leave. */
+    clear: both;
+    /* Height is left to the content so the whole plan and the rewritten query are readable. The
+       scroll this leaves is the horizontal one, for plans wider than the bar. */
+    overflow: auto;
+}
+
+.phpdebugbar .ft-explain-heading {
+    margin: 0 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #777;
+}
+
+.phpdebugbar .ft-explain-heading ~ .ft-explain-heading,
+.phpdebugbar .ft-explain-table + .ft-explain-heading {
+    margin-top: 10px;
+}
+
+.phpdebugbar .ft-explain-table {
+    /* Auto so each table is only as wide as its own content. */
+    width: auto;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.phpdebugbar .ft-explain-table th,
+.phpdebugbar .ft-explain-table td {
+    padding: 2px 6px;
+    border: 1px solid #e0e0e0;
+    text-align: left;
+    vertical-align: top;
+    /* The rewritten query in note 1003 is a single long line. */
+    max-width: 900px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.phpdebugbar .ft-explain-table th {
+    background: #f4f4f4;
+}
+
+/* Flagged cells. The tooltip is the native one from the cell's title attribute. */
+.phpdebugbar .ft-explain-cell-red,
+.phpdebugbar .ft-explain-cell-orange,
+.phpdebugbar .ft-explain-cell-yellow,
+.phpdebugbar .ft-explain-cell-green {
+    cursor: help;
+}
+
+.phpdebugbar .ft-explain-cell-red {
+    background: #f5c6cb;
+    color: #721c24;
+}
+
+.phpdebugbar .ft-explain-cell-orange {
+    background: #ffddb0;
+    color: #7a4a00;
+}
+
+.phpdebugbar .ft-explain-cell-yellow {
+    background: #fff3cd;
+    color: #7a6000;
+}
+
+.phpdebugbar .ft-explain-cell-green {
+    background: #d4edda;
+    color: #1c5227;
+}
+
+.phpdebugbar .ft-explain-error {
+    margin: 0;
+    color: #b00;
+    font-size: 11px;
+}
