@@ -346,10 +346,10 @@
     }
 
     /**
-     * Filtered = 0 means MySQL has no estimate for the row, not that no rows survive.
+     * An empty or non-numeric filtered cell is not an estimate. 0% is.
      */
     function hasFilteredEstimate(row) {
-        return parseFloat(value(row, 'filtered')) > 0;
+        return !isNaN(parseFloat(value(row, 'filtered')));
     }
 
     /**
