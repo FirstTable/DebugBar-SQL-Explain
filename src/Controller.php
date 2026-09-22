@@ -172,7 +172,9 @@ class Controller extends BaseDebugBarController
             return 'Only SELECT statements can be explained.';
         }
 
-        if (str_contains(rtrim($sql, "; \t\n\r"), ';')) {
+        // Strip '…' literals so a ';' inside one is not treated as a second statement.
+        $plain = preg_replace("/'(?:\\\\.|''|[^'])*'/", '', $sql) ?? $sql;
+        if (str_contains(rtrim($plain, "; \t\n\r"), ';')) {
             return 'Only a single statement can be explained.';
         }
 
