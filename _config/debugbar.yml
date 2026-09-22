@@ -3,10 +3,6 @@ Name: DebugBar-SQL-Explain
 Only:
   moduleexists: 'lekoala/silverstripe-debugbar'
 ---
-LeKoala\DebugBar\DebugBar:
-  check_local_ip: false
-  include_jquery: true
-  query_limit: 1000
 SilverStripe\Core\Injector\Injector:
   LeKoala\DebugBar\Extension\ProxyDBExtension:
     class: FirstTable\DebugBar\Explain\ProxyDBExtension
