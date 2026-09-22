@@ -650,6 +650,9 @@
      *
      * The bar keeps its instance in a local, so the data is taken as it arrives rather than read
      * back off the bar afterwards.
+     *
+     * Only read while a row is being built, because an ajax request brings a dataset of its own
+     * and replaces this with the statements that request recorded.
      */
     var recordedStatements = {};
 
@@ -664,6 +667,25 @@
     };
 
     /**
+     * Fixes the statement and the values it ran with to the button that explains them, so the
+     * two are carried together by the one element from the moment the row is built. Looking
+     * either of them up on click would read whatever the statement text happens to key by then,
+     * which an ajax request's dataset may since have replaced.
+     */
+    function attachStatement(button, sql) {
+        var statement = recordedStatements[sql];
+
+        if (!statement) {
+            return;
+        }
+
+        button.attr({
+            'data-ft-sql': statement.sql,
+            'data-ft-parameters': statement.parameters
+        });
+    }
+
+    /**
      * Only the recorded statement is ever sent, so the server binds the values rather than
      * explaining the ones the collector inlined for display. The row's own SQL is never sent:
      * inlined values explain as constants where the statement that ran used placeholders.
@@ -671,22 +693,22 @@
      * The session's security token goes with it, because the endpoint runs the statement and
      * would otherwise run whatever another site posted on a logged in admin's behalf.
      *
-     * @return Body for the recorded statement, or null when the row has none.
+     * @return Body for the button's statement, or null when the row had none to attach.
      */
-    function requestBody(sql) {
-        var statement = recordedStatements[sql];
+    function requestBody(button) {
+        var recorded = button[0].dataset;
 
-        if (!statement) {
+        if (!recorded.ftSql) {
             return null;
         }
 
-        return 'sql=' + encodeURIComponent(statement.sql)
-            + '&parameters=' + encodeURIComponent(statement.parameters)
+        return 'sql=' + encodeURIComponent(recorded.ftSql)
+            + '&parameters=' + encodeURIComponent(recorded.ftParameters)
             + '&SecurityID=' + encodeURIComponent(window.ftDebugBarExplainToken || '');
     }
 
-    function explain(panel, sql) {
-        var body = requestBody(sql);
+    function explain(panel, button) {
+        var body = requestBody(button);
 
         if (!body) {
             message(panel, 'This statement was not recorded, so it cannot be explained as it ran.', 'ft-explain-error');
@@ -743,6 +765,8 @@
         var button = jQuery('<button type="button" class="ft-explain-button">EXPLAIN</button>').prependTo(li);
         var panel = jQuery('<div class="ft-explain-panel" />').hide().appendTo(li);
 
+        attachStatement(button, stmt.statement);
+
         button
             .on('click', function (event) {
                 // The row carries click handlers of its own.
@@ -754,7 +778,7 @@
                 }
 
                 panel.show();
-                explain(panel, stmt.statement);
+                explain(panel, button);
             });
     }
 
