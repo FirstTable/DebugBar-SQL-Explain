@@ -23,29 +23,28 @@ class ControllerExtension extends BaseControllerExtension
     {
         parent::onAfterInit();
 
-        // Same early exits as the parent: those controllers never call includeRequirements, and
-        // registering our scripts here would put them ahead of the bar's own assets.
-        if ($this->owner instanceof RootURLController) {
+        // CMS routing stubs never call includeRequirements; wait for the real page controller so our assets stay after the bar's.
+        $isRootURLController = $this->owner instanceof RootURLController;
+        $isModelAsController = $this->owner instanceof ModelAsController;
+        $debugBarRequirementsIncluded = !$isRootURLController && !$isModelAsController;
+        if (!$debugBarRequirementsIncluded) {
             return;
         }
 
-        if ($this->owner instanceof ModelAsController) {
-            return;
-        }
-
+        // Don't add the extension if  DebugBar is not running
         $debugBar = DebugBar::getDebugBar();
         if (!$debugBar) {
             return;
         }
 
-        if (!$debugBar->hasCollector(ParametersCollector::NAME)) {
+        $needsParametersCollector = !$debugBar->hasCollector(ParametersCollector::NAME);
+        if ($needsParametersCollector) {
             $debugBar->addCollector(new ParametersCollector());
         }
 
-        // Path packages expose under resources/packages/… (realpath), not resources/vendor/…
-        Requirements::css('resources/packages/debugbar-sql-explain/css/Explain.css');
-        Requirements::javascript('resources/packages/debugbar-sql-explain/javascript/Handle.js');
-        Requirements::javascript('resources/packages/debugbar-sql-explain/javascript/Explain.js');
+        Requirements::css('firsttable/debugbar-sql-explain:css/Explain.css');
+        Requirements::javascript('firsttable/debugbar-sql-explain:javascript/Handle.js');
+        Requirements::javascript('firsttable/debugbar-sql-explain:javascript/Explain.js');
 
         Requirements::customScript(
             'window.ftDebugBarExplainToken = ' . json_encode(SecurityToken::inst()->getValue()) . ';',
