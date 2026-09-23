@@ -1,0 +1,12 @@
+---
+Name: DebugBar-SQL-Explain
+Only:
+  moduleexists: 'lekoala/silverstripe-debugbar'
+---
+SilverStripe\Core\Injector\Injector:
+  LeKoala\DebugBar\Extension\ProxyDBExtension:
+    class: FirstTable\DebugBar\Explain\ProxyDBExtension
+  LeKoala\DebugBar\Extension\ControllerExtension:
+    class: FirstTable\DebugBar\Explain\ControllerExtension
+  LeKoala\DebugBar\DebugBarController:
+    class: FirstTable\DebugBar\Explain\Controller

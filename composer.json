@@ -1,0 +1,24 @@
+{
+    "name": "firsttable/debugbar-sql-explain",
+    "description": "EXPLAIN tooling for LeKoala DebugBar — typed SQL parameters and an EXPLAIN button on query rows.",
+    "type": "silverstripe-vendormodule",
+    "license": "proprietary",
+    "version": "1.0.0",
+    "require": {
+        "php": "^8.3",
+        "lekoala/silverstripe-debugbar": "^3"
+    },
+    "autoload": {
+        "psr-4": {
+            "FirstTable\\DebugBar\\Explain\\": "src/"
+        }
+    },
+    "extra": {
+        "expose": [
+            "javascript",
+            "css"
+        ]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
