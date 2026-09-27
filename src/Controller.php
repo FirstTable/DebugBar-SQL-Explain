@@ -26,44 +26,46 @@ class Controller extends BaseDebugBarController
 
     public function explain(HTTPRequest $request): HTTPResponse
     {
-        $unavailable = $this->unavailableReason();
+        $unavailable = static::unavailableReason();
         if ($unavailable) {
-            return $this->jsonResponse(['error' => $unavailable], 403);
+            return static::jsonResponse(['error' => $unavailable], 403);
         }
 
         if (!$request->isPOST()) {
-            return $this->jsonResponse(['error' => 'POST a sql parameter.'], 400);
+            return static::jsonResponse(['error' => 'POST a sql parameter.'], 400);
         }
 
         if (!SecurityToken::inst()->checkRequest($request)) {
-            return $this->jsonResponse(['error' => 'Invalid security token.'], 400);
+            return static::jsonResponse(['error' => 'Invalid security token.'], 400);
         }
 
         $sql = trim((string)$request->postVar('sql'));
-        $parameters = $this->parameters((string)$request->postVar('parameters'));
+        $parameters = static::parameters((string)$request->postVar('parameters'));
         if ($parameters === null) {
-            return $this->jsonResponse(['error' => 'Parameters could not be read.'], 400);
+            return static::jsonResponse(['error' => 'Parameters could not be read.'], 400);
         }
 
-        $rejection = $this->rejectionReason($sql);
+        $rejection = static::rejectionReason($sql);
         if ($rejection) {
-            return $this->jsonResponse(['error' => $rejection], 400);
+            return static::jsonResponse(['error' => $rejection], 400);
         }
 
         try {
-            $explain = $this->roundFiltered(iterator_to_array(DB::prepared_query('EXPLAIN ' . $sql, $parameters)));
+            $explain = static::roundFiltered(iterator_to_array(DB::prepared_query('EXPLAIN ' . $sql, $parameters)));
             $warnings = iterator_to_array(DB::query('SHOW WARNINGS'));
+            $indexes = static::indexes(static::tables($explain));
         } catch (\Exception $exception) {
-            return $this->jsonResponse(['error' => $exception->getMessage()], 400);
+            return static::jsonResponse(['error' => $exception->getMessage()], 400);
         }
 
-        return $this->jsonResponse([
+        return static::jsonResponse([
             'explain'  => $explain,
+            'indexes'  => $indexes,
             'warnings' => $warnings,
         ]);
     }
 
-    protected function unavailableReason(): ?string
+    protected static function unavailableReason(): ?string
     {
         $reasons = DebugBar::disabledCriteria();
         if ($reasons) {
@@ -76,7 +78,7 @@ class Controller extends BaseDebugBarController
     /**
      * @return array<int, mixed>|null
      */
-    protected function parameters(string $encoded): ?array
+    protected static function parameters(string $encoded): ?array
     {
         if ($encoded === '') {
             return [];
@@ -90,7 +92,7 @@ class Controller extends BaseDebugBarController
         try {
             $parameters = [];
             foreach ($decoded as $parameter) {
-                $parameters[] = $this->bound($parameter);
+                $parameters[] = static::bound($parameter);
             }
         } catch (\InvalidArgumentException) {
             return null;
@@ -103,7 +105,7 @@ class Controller extends BaseDebugBarController
      * @param mixed $parameter
      * @return mixed
      */
-    protected function bound($parameter)
+    protected static function bound($parameter)
     {
         if (!is_array($parameter)) {
             throw new \InvalidArgumentException('Parameter is not a value and type.');
@@ -131,14 +133,14 @@ class Controller extends BaseDebugBarController
             }
         }
 
-        return $this->cast($value, $type);
+        return static::cast($value, $type);
     }
 
     /**
      * @param scalar|null $value
      * @return mixed
      */
-    protected function cast($value, string $type)
+    protected static function cast($value, string $type)
     {
         switch ($type) {
             case 'boolean':
@@ -162,7 +164,7 @@ class Controller extends BaseDebugBarController
         throw new \InvalidArgumentException('Parameter type is not bound.');
     }
 
-    protected function rejectionReason(string $sql): ?string
+    protected static function rejectionReason(string $sql): ?string
     {
         if (!$sql) {
             return 'No statement given.';
@@ -185,7 +187,7 @@ class Controller extends BaseDebugBarController
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */
-    protected function roundFiltered(array $rows): array
+    protected static function roundFiltered(array $rows): array
     {
         foreach ($rows as $index => $row) {
             foreach ($row as $column => $value) {
@@ -205,7 +207,181 @@ class Controller extends BaseDebugBarController
         return $rows;
     }
 
-    protected function jsonResponse(array $body, int $statusCode = 200): HTTPResponse
+    /**
+     * Names the plan read a table under, without repeats, in the order the plan reached them.
+     *
+     * MySQL is inconsistent about the case of EXPLAIN column names, so the column is matched
+     * without it.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, string>
+     */
+    protected static function tables(array $rows): array
+    {
+        $tables = [];
+
+        foreach ($rows as $row) {
+            foreach ($row as $column => $value) {
+
+                if (strtolower((string)$column) !== 'table') {
+                    continue;
+                }
+
+                $table = (string)$value;
+
+                if (!$table) {
+                    continue;
+                }
+
+                // A work table the optimiser named itself, such as <derived2> or <union1,2>, which
+                // has no index of its own.
+                if (str_starts_with($table, '<')) {
+                    continue;
+                }
+
+                $tables[$table] = $table;
+            }
+        }
+
+        return array_values($tables);
+    }
+
+    /**
+     * Indexes on the tables given, one row per index with its parts in order.
+     *
+     * A name the plan reported that is not a table in this schema, an alias among them, has no
+     * row here, so the lookup doubles as the check that the name is a real table.
+     *
+     * @param array<int, string> $tables
+     * @return array<int, array<string, mixed>>
+     */
+    protected static function indexes(array $tables): array
+    {
+        if (!$tables) {
+            return [];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($tables), '?'));
+
+        $sql = <<<SQL
+            SELECT
+                TABLE_NAME,
+                INDEX_NAME,
+                COLUMN_NAME,
+                SUB_PART,
+                SEQ_IN_INDEX,
+                INDEX_TYPE,
+                NON_UNIQUE,
+                CARDINALITY
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME IN ($placeholders)
+            SQL;
+
+        return static::groupedIndexes(iterator_to_array(DB::prepared_query($sql, $tables)));
+    }
+
+    /**
+     * One row per index, with its parts in order.
+     *
+     * A prefix index is not the same index as one over the whole column, so the length a part is
+     * cut to is kept with the column it belongs to.
+     *
+     * @param array<int, array<string, mixed>> $parts
+     * @return array<int, array<string, mixed>>
+     */
+    protected static function groupedIndexes(array $parts): array
+    {
+        $indexes = [];
+
+        foreach ($parts as $part) {
+            $table = (string)static::cell($part, 'TABLE_NAME');
+            $name = (string)static::cell($part, 'INDEX_NAME');
+            $key = $table . "\0" . $name;
+
+            $index = $indexes[$key] ?? null;
+            if (!$index) {
+                $unique = 'No';
+                if ((int)static::cell($part, 'NON_UNIQUE') === 0) {
+                    $unique = 'Yes';
+                }
+
+                $index = $indexes[$key] = (object)[
+                    'table'       => $table,
+                    'index'       => $name,
+                    'type'        => static::cell($part, 'INDEX_TYPE'),
+                    'unique'      => $unique,
+                    'cardinality' => null,
+                    'columns'     => [],
+                ];
+            }
+
+            $column = (string)static::cell($part, 'COLUMN_NAME');
+            $prefix = static::cell($part, 'SUB_PART');
+            $sequence = (int)static::cell($part, 'SEQ_IN_INDEX');
+            if ($prefix === null) {
+                $index->columns[$sequence] = $column;
+            } else {
+                $index->columns[$sequence] = $column . '(' . $prefix . ')';
+            }
+
+            $cardinality = static::cell($part, 'CARDINALITY');
+            if (!is_numeric($cardinality)) {
+                continue;
+            }
+
+            $value = (int)$cardinality;
+            if ($index->cardinality === null) {
+                $index->cardinality = $value;
+                continue;
+            }
+
+            if ($value > $index->cardinality) {
+                $index->cardinality = $value;
+            }
+        }
+
+        $rows = [];
+        foreach ($indexes as $index) {
+            ksort($index->columns);
+            $rows[] = [
+                'table'       => $index->table,
+                'index'       => $index->index,
+                'columns'     => implode(', ', $index->columns),
+                'type'        => $index->type,
+                'unique'      => $index->unique,
+                'cardinality' => $index->cardinality,
+            ];
+        }
+
+        usort($rows, static function (array $left, array $right): int {
+            $table = strcmp((string)$left['table'], (string)$right['table']);
+            if ($table !== 0) {
+                return $table;
+            }
+
+            return strcmp((string)$left['index'], (string)$right['index']);
+        });
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return mixed
+     */
+    protected static function cell(array $row, string $name)
+    {
+        foreach ($row as $column => $value) {
+            if (strtolower((string)$column) === strtolower($name)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    protected static function jsonResponse(array $body, int $statusCode = 200): HTTPResponse
     {
         $response = HTTPResponse::create(json_encode($body), $statusCode);
         $response->addHeader('Content-Type', 'application/json');

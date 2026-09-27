@@ -641,6 +641,7 @@
 
         panel.empty();
         section(panel, 'EXPLAIN', data.explain || []);
+        section(panel, 'INDEXES', data.indexes || []);
         section(panel, 'SHOW WARNINGS', data.warnings || []);
     }
 
