@@ -6,6 +6,7 @@ namespace FirstTable\DebugBar\Explain;
 
 use LeKoala\DebugBar\DebugBar;
 use LeKoala\DebugBar\Extension\ProxyDBExtension as BaseProxyDBExtension;
+use SilverStripe\Core\Environment;
 use SilverStripe\ORM\DB;
 use TractorCow\ClassProxy\Generators\ProxyGenerator;
 
@@ -47,6 +48,15 @@ class ProxyDBExtension extends BaseProxyDBExtension
     public static function getStatements(): array
     {
         return self::$statements;
+    }
+
+    /**
+     * Makes EXPLAIN available and enables DebugBar
+     */
+    public static function setAvailable(bool $available): void
+    {
+        Environment::setEnv('DEBUGBAR_DISABLE', !$available);
+        self::$available = $available;
     }
 
     protected static function available(): bool

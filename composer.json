@@ -3,7 +3,7 @@
     "description": "EXPLAIN tooling for LeKoala DebugBar — typed SQL parameters and an EXPLAIN button on query rows.",
     "type": "silverstripe-vendormodule",
     "license": "proprietary",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "require": {
         "php": "^8.3",
         "lekoala/silverstripe-debugbar": "^3"
