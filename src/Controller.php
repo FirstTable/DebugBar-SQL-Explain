@@ -26,6 +26,9 @@ class Controller extends BaseDebugBarController
 
     public function explain(HTTPRequest $request): HTTPResponse
     {
+        // Allow requests to __debugbar/explain to be made
+        ProxyDBExtension::setAvailable(true);
+
         $unavailable = static::unavailableReason();
         if ($unavailable) {
             return static::jsonResponse(['error' => $unavailable], 403);
